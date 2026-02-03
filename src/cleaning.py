@@ -5,6 +5,9 @@ This module:
 - Loads raw assessment and enrollment files
 - Standardizes student identifiers
 - Selects only required fields
+- Cleans and renames columns for clarity
+- Filters data to relevant subjects/tests
+- Calculates counts of students who were recommended vs. enrolled
 - Merges all sources into one analysis-ready dataset
 
 Run directly:
@@ -187,7 +190,9 @@ def main():
     aasa = clean_aasa("AZ_AASA_District_0004245_Spring_2025_Student_Data_File.txt")
     growth = clean_growth("GrowthModelReport_134140268800195983.csv")
     enrollment = clean_enrollment("Qualtrics_Daily_Enrollment_2026-01-27T08_01_52-07_00.csv")
-
+    # -------------------------------------------------
+    # MERGE EVERYTHING
+    # -------------------------------------------------
     final_df = merge_dataframes(
         "participant_list.csv",
         enrollment,
@@ -197,7 +202,38 @@ def main():
         growth
     )
 
-    final_df.to_csv(DATA_PROCESSED / "analysis_file.csv", index=False)
+    # -------------------------------------------------
+    # SAMPLE FLOW COUNTS
+    # -------------------------------------------------
+    total_recommended = len(final_df)
+
+    enrolled_mask = final_df["state_student_id"].notna()
+    enrolled_count = enrolled_mask.sum()
+
+    not_returned = total_recommended - enrolled_count
+
+    counts = pd.DataFrame({
+        "metric": [
+            "Recommended",
+            "Enrolled",
+            "Did not return"
+        ],
+        "count": [
+            total_recommended,
+            enrolled_count,
+            not_returned
+        ]
+    })
+
+    # save counts for report
+    counts.to_csv(DATA_PROCESSED / "sample_sizes.csv", index=False)
+
+    # -------------------------------------------------
+    # FILTER TO ANALYTIC SAMPLE
+    # -------------------------------------------------
+    analysis_df = final_df[enrolled_mask].copy()
+
+    analysis_df.to_csv(DATA_PROCESSED / "analysis_file.csv", index=False)
 
 
 if __name__ == "__main__":
