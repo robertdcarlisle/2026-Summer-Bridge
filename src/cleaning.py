@@ -66,7 +66,7 @@ def clean_aasa(filename):
         ly_math_AASA_score : numeric
     """
     path = DATA_RAW / filename
-    df = pd.read_csv(path, delimiter="\t")
+    df = pd.read_csv(path, delimiter="\t", dtype={"SSID": str})
 
     df = df[df["Test Code"].str.contains("AZAM", na=False)]
 
@@ -76,7 +76,6 @@ def clean_aasa(filename):
     })
 
     df = df[["state_student_id", "ly_math_AASA_score"]]
-    df["state_student_id"] = df["state_student_id"].astype(str)
 
     return df
 
@@ -92,7 +91,7 @@ def clean_growth(filename):
         BM1_gain_score : numeric
     """
     path = DATA_RAW / filename
-    df = pd.read_csv(path, skiprows=3)
+    df = pd.read_csv(path, skiprows=3, dtype={"Student ID": str})
 
     df = df[df["Student ID"].notna()]
 
@@ -103,7 +102,6 @@ def clean_growth(filename):
 
     df["BM1_gain_score"] = pd.to_numeric(df["BM1_gain_score"], errors="coerce")
     df = df[["student_id", "BM1_gain_score"]]
-    df["student_id"] = df["student_id"].astype(str)
 
     return df
 
@@ -120,7 +118,7 @@ def clean_enrollment(filename):
         school_name : str
     """
     path = DATA_RAW / filename
-    df = pd.read_csv(path)
+    df = pd.read_csv(path, dtype={"SAISID": str, "PermID": str})
 
     df = df.rename(columns={
         "PermID": "student_id",
@@ -134,9 +132,6 @@ def clean_enrollment(filename):
     ]
 
     df = df.drop(columns=drop_cols, errors="ignore")
-
-    df["student_id"] = df["student_id"].astype(str)
-    df["state_student_id"] = df["state_student_id"].astype(str)
 
     return df
 
@@ -155,9 +150,7 @@ def merge_dataframes(participants_file, enrollment, pretest, bm1, aasa, growth):
     DataFrame
         Fully merged student-level dataset.
     """
-    df = pd.read_csv(DATA_RAW / participants_file)
-    df["student_id"] = df["student_id"].astype(str)
-    df["state_student_id"] = df["state_student_id"].astype(str)
+    df = pd.read_csv(DATA_RAW / participants_file, dtype={"student_id": str})
 
     df = df.merge(enrollment, on="student_id", how="left")
     df = df.merge(pretest, on="student_id", how="left")
