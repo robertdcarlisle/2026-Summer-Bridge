@@ -88,3 +88,29 @@ def clean_growth(filename):
 
 # %%   
 growth = clean_growth("GrowthModelReport_134140268800195983.csv") 
+
+#Enrollment file data preparation.
+# %%
+def clean_enrollment(filename):
+    
+    path = DATA_RAW / filename
+    df = pd.read_csv(path)
+
+    # rename important columns
+    df = df.rename(columns={
+        "PermID": "student_id",
+        "SAISID": "state_student_id",
+        "School": "school_name"
+    })
+
+     # keep only what you need
+    df = df.drop(columns=['HomeRoom', 'FirstName', 'LastName', 'Email', 'MiddleName', 'Birth Date', 'Status'])
+
+    # standardize types
+    df["student_id"] = df["student_id"].astype(str)
+    df["state_student_id"] = df["state_student_id"].astype(str)
+    return df
+
+# %%   
+enrollment = clean_enrollment("Qualtrics_Daily_Enrollment_2026-01-27T08_01_52-07_00.csv") 
+
