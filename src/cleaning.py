@@ -17,6 +17,9 @@ Import functions into notebooks for testing:
 from config import DATA_RAW, DATA_PROCESSED
 import pandas as pd
 
+def normalize_id(series):
+    """Standardize student IDs for safe merging."""
+    return series.astype(str).str.strip().str.lstrip("0")
 
 # ---------------------------------------------------------------------
 # Cleaning functions
@@ -40,7 +43,7 @@ def clean_benchmarks(filename):
     """
     path = DATA_RAW / filename
     df = pd.read_excel(path)
-
+    
     df = df.rename(columns={
         "StudentID": "student_id",
         "ScaledScore": "bm_score",
@@ -48,7 +51,7 @@ def clean_benchmarks(filename):
     })
 
     df = df[["student_id", "subject", "bm_score"]]
-    df["student_id"] = df["student_id"].astype(str)
+    df["student_id"] = normalize_id(df["student_id"])
 
     return df
 
@@ -76,6 +79,7 @@ def clean_aasa(filename):
     })
 
     df = df[["state_student_id", "ly_math_AASA_score"]]
+    df["state_student_id"] = normalize_id(df["state_student_id"])
 
     return df
 
@@ -102,6 +106,7 @@ def clean_growth(filename):
 
     df["BM1_gain_score"] = pd.to_numeric(df["BM1_gain_score"], errors="coerce")
     df = df[["student_id", "BM1_gain_score"]]
+    df["student_id"] = normalize_id(df["student_id"])
 
     return df
 
@@ -132,6 +137,8 @@ def clean_enrollment(filename):
     ]
 
     df = df.drop(columns=drop_cols, errors="ignore")
+    df["state_student_id"] = normalize_id(df["state_student_id"])
+    df["student_id"] = normalize_id(df["student_id"])
 
     return df
 
@@ -151,6 +158,7 @@ def merge_dataframes(participants_file, enrollment, pretest, bm1, aasa, growth):
         Fully merged student-level dataset.
     """
     df = pd.read_csv(DATA_RAW / participants_file, dtype={"student_id": str})
+    df["student_id"] = normalize_id(df["student_id"])
 
     df = df.merge(enrollment, on="student_id", how="left")
     df = df.merge(pretest, on="student_id", how="left")
