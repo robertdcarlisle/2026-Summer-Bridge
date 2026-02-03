@@ -157,6 +157,7 @@ def merge_dataframes(participants_file, enrollment, pretest, bm1, aasa, growth):
     """
     df = pd.read_csv(DATA_RAW / participants_file)
     df["student_id"] = df["student_id"].astype(str)
+    df["state_student_id"] = df["state_student_id"].astype(str)
 
     df = df.merge(enrollment, on="student_id", how="left")
     df = df.merge(pretest, on="student_id", how="left")
