@@ -1,116 +1,202 @@
 """
-Code to process and clean raw data files. 
-Standardize the student ID column names across different files.
-Includes functions to load files, rename columns, and save processed files.
-"""
-# %%
-from config import DATA_RAW
-import pandas as pd
-# %%
-def clean_benchmarks(filename):
-    path = DATA_RAW / filename
+Data cleaning pipeline for Summer Bridge analysis.
 
+This module:
+- Loads raw assessment and enrollment files
+- Standardizes student identifiers
+- Selects only required fields
+- Merges all sources into one analysis-ready dataset
+
+Run directly:
+    python cleaning.py
+
+Import functions into notebooks for testing:
+    from cleaning import clean_growth
+"""
+
+from config import DATA_RAW, DATA_PROCESSED
+import pandas as pd
+
+
+# ---------------------------------------------------------------------
+# Cleaning functions
+# ---------------------------------------------------------------------
+
+def clean_benchmarks(filename):
+    """
+    Load and clean a benchmark-style Excel file (BM1 or Pretest).
+
+    Parameters
+    ----------
+    filename : str
+        Excel filename located in DATA_RAW.
+
+    Returns
+    -------
+    DataFrame
+        student_id : str
+        subject : str
+        bm_score : numeric
+    """
+    path = DATA_RAW / filename
     df = pd.read_excel(path)
 
-    # rename important columns
     df = df.rename(columns={
         "StudentID": "student_id",
         "ScaledScore": "bm_score",
         "Subject": "subject"
     })
 
-    # keep only what you need
     df = df[["student_id", "subject", "bm_score"]]
-    # standardize types
     df["student_id"] = df["student_id"].astype(str)
 
     return df
 
-bm1 = clean_benchmarks("2025-2026 BM1 Math.xlsx")
-bm1 = bm1.rename(columns={"bm_score": "bm1_score"})
 
-#Pretest Data preparation. 
-# I can reuse the same function as bm1 since the structure is the same.
-pretest = clean_benchmarks("2025-2026 Pretest Math.xlsx")
-pretest = pretest.rename(columns={"bm_score": "pretest_score"})
+def clean_aasa(filename):
+    """
+    Load and clean AASA state assessment data.
 
-#AASA Data preparation.
-def clean_AASA(filename):
-    
+    Filters to math tests only and returns prior-year scale score.
+
+    Returns
+    -------
+    DataFrame
+        state_student_id : str
+        ly_math_AASA_score : numeric
+    """
     path = DATA_RAW / filename
     df = pd.read_csv(path, delimiter="\t")
 
-    # filter to only Math tests
-    df = df[df['Test Code'].str.contains('AZAM', na=False)]
+    df = df[df["Test Code"].str.contains("AZAM", na=False)]
 
-    # rename important columns
     df = df.rename(columns={
         "SSID": "state_student_id",
         "Total Scale Score": "ly_math_AASA_score"
     })
 
-     # keep only what you need
     df = df[["state_student_id", "ly_math_AASA_score"]]
-
-    # standardize types
     df["state_student_id"] = df["state_student_id"].astype(str)
-    return df
-  
-aasa = clean_AASA("AZ_AASA_District_0004245_Spring_2025_Student_Data_File.txt") 
 
-#Growth Score Data preparation.
+    return df
+
+
 def clean_growth(filename):
-    
+    """
+    Load benchmark growth report and calculate numeric gain score.
+
+    Returns
+    -------
+    DataFrame
+        student_id : str
+        BM1_gain_score : numeric
+    """
     path = DATA_RAW / filename
     df = pd.read_csv(path, skiprows=3)
-    df = df[df['Student ID'].notna()]
 
-    # split Growth Quadrant into Proficiency and Growth
-    split_names = df['Growth Quadrant'].str.split(',', expand=True)
-    df['Proficiency'] = split_names[0]
-    df['Growth'] = split_names[1]
+    df = df[df["Student ID"].notna()]
 
-    # rename important columns
     df = df.rename(columns={
         "Student ID": "student_id",
         "Scale Score Difference": "BM1_gain_score"
     })
-    #Adjust gain score to numeric
-    df["BM1_gain_score"] = pd.to_numeric(
-        df["BM1_gain_score"],
-        errors="coerce"
-    )
-    # keep only what you need
+
+    df["BM1_gain_score"] = pd.to_numeric(df["BM1_gain_score"], errors="coerce")
     df = df[["student_id", "BM1_gain_score"]]
-    # standardize types
     df["student_id"] = df["student_id"].astype(str)
+
     return df
 
-# %%   
-growth = clean_growth("GrowthModelReport_134140268800195983.csv") 
 
-#Enrollment file data preparation.
-# %%
 def clean_enrollment(filename):
-    
+    """
+    Load and clean district enrollment file.
+
+    Returns
+    -------
+    DataFrame
+        student_id : str
+        state_student_id : str
+        school_name : str
+    """
     path = DATA_RAW / filename
     df = pd.read_csv(path)
 
-    # rename important columns
     df = df.rename(columns={
         "PermID": "student_id",
         "SAISID": "state_student_id",
         "School": "school_name"
     })
 
-     # keep only what you need
-    df = df.drop(columns=['HomeRoom', 'FirstName', 'LastName', 'Email', 'MiddleName', 'Birth Date', 'Status'])
+    drop_cols = [
+        'HomeRoom', 'FirstName', 'LastName',
+        'Email', 'MiddleName', 'Birth Date', 'Status'
+    ]
 
-    # standardize types
+    df = df.drop(columns=drop_cols, errors="ignore")
+
     df["student_id"] = df["student_id"].astype(str)
     df["state_student_id"] = df["state_student_id"].astype(str)
+
     return df
 
-# %%   
-enrollment = clean_enrollment("Qualtrics_Daily_Enrollment_2026-01-27T08_01_52-07_00.csv") 
 
+def merge_dataframes(participants_file, enrollment, pretest, bm1, aasa, growth):
+    """
+    Merge all cleaned datasets into one analysis-ready dataframe.
+
+    Parameters
+    ----------
+    participants_file : str
+        CSV listing students and intervention group.
+
+    Returns
+    -------
+    DataFrame
+        Fully merged student-level dataset.
+    """
+    df = pd.read_csv(DATA_RAW / participants_file)
+    df["student_id"] = df["student_id"].astype(str)
+
+    df = df.merge(enrollment, on="student_id", how="left")
+    df = df.merge(pretest, on="student_id", how="left")
+    df = df.merge(bm1, on="student_id", how="left")
+    df = df.merge(aasa, on="state_student_id", how="left")
+    df = df.merge(growth, on="student_id", how="left")
+
+    return df
+
+
+# ---------------------------------------------------------------------
+# Pipeline runner
+# ---------------------------------------------------------------------
+
+def main():
+    """Execute full cleaning and merging pipeline and save final dataset."""
+
+    bm1 = clean_benchmarks("2025-2026 BM1 Math.xlsx").rename(
+        columns={"bm_score": "bm1_score"}
+    )
+
+    pretest = clean_benchmarks("2025-2026 Pretest Math.xlsx").rename(
+        columns={"bm_score": "pretest_score"}
+    )
+
+    aasa = clean_aasa("AZ_AASA_District_0004245_Spring_2025_Student_Data_File.txt")
+    growth = clean_growth("GrowthModelReport_134140268800195983.csv")
+    enrollment = clean_enrollment("Qualtrics_Daily_Enrollment_2026-01-27T08_01_52-07_00.csv")
+
+    final_df = merge_dataframes(
+        "participant_list.csv",
+        enrollment,
+        pretest,
+        bm1,
+        aasa,
+        growth
+    )
+
+    final_df.to_csv(DATA_PROCESSED / "analysis_file.csv", index=False)
+
+
+if __name__ == "__main__":
+    main()
