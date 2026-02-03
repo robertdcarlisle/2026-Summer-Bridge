@@ -57,3 +57,34 @@ def clean_AASA(filename):
     return df
   
 aasa = clean_AASA("AZ_AASA_District_0004245_Spring_2025_Student_Data_File.txt") 
+
+#Growth Score Data preparation.
+def clean_growth(filename):
+    
+    path = DATA_RAW / filename
+    df = pd.read_csv(path, skiprows=3)
+    df = df[df['Student ID'].notna()]
+
+    # split Growth Quadrant into Proficiency and Growth
+    split_names = df['Growth Quadrant'].str.split(',', expand=True)
+    df['Proficiency'] = split_names[0]
+    df['Growth'] = split_names[1]
+
+    # rename important columns
+    df = df.rename(columns={
+        "Student ID": "student_id",
+        "Scale Score Difference": "BM1_gain_score"
+    })
+    #Adjust gain score to numeric
+    df["BM1_gain_score"] = pd.to_numeric(
+        df["BM1_gain_score"],
+        errors="coerce"
+    )
+    # keep only what you need
+    df = df[["student_id", "BM1_gain_score"]]
+    # standardize types
+    df["student_id"] = df["student_id"].astype(str)
+    return df
+
+# %%   
+growth = clean_growth("GrowthModelReport_134140268800195983.csv") 
